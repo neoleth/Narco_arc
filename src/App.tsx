@@ -66,6 +66,51 @@ export default function App() {
     setTimeout(() => setToastMessage(null), 2800);
   };
 
+  const ensureArcTestnet = async () => {
+    if (!window.ethereum) throw new Error("No wallet installed");
+    
+    const ARC_CHAIN_ID = 5042002;
+    const ARC_CHAIN_ID_HEX = '0x' + ARC_CHAIN_ID.toString(16);
+
+    try {
+      await window.ethereum.request({
+        method: 'wallet_switchEthereumChain',
+        params: [{ chainId: ARC_CHAIN_ID_HEX }],
+      });
+    } catch (err: any) {
+      if (err.code === 4902) {
+        try {
+          await window.ethereum.request({
+            method: 'wallet_addEthereumChain',
+            params: [{
+              chainId: ARC_CHAIN_ID_HEX,
+              chainName: 'Arc Testnet',
+              rpcUrls: ['https://rpc.testnet.arc.network'],
+              nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 18 },
+            }],
+          });
+        } catch (addError: any) {
+          throw new Error('User rejected network addition: ' + (addError.message || ''));
+        }
+      } else if (err.code === 4001) {
+        throw new Error('User rejected network switch');
+      } else {
+        console.error("Switch error", err);
+      }
+    }
+
+    // Give the provider a short moment to sync the state
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    const provider = new ethers.BrowserProvider(window.ethereum);
+    const network = await provider.getNetwork();
+    if (Number(network.chainId) !== ARC_CHAIN_ID) {
+       throw new Error(`Expected Arc Testnet but got Chain ID: ${network.chainId}`);
+    }
+    
+    return provider;
+  };
+
   const connectWallet = async (name: string) => {
     if (!window.ethereum) {
       showToast('❌ Wallet not found. Please install MetaMask.');
@@ -74,41 +119,9 @@ export default function App() {
     }
 
     try {
-      // 1. Enforce Arc Testnet
-      // Chain ID: 5042002 -> hex: 0x4ce752
-      const ARC_CHAIN_ID_HEX = '0x4ce752';
-
-      try {
-        await window.ethereum.request({
-          method: 'wallet_switchEthereumChain',
-          params: [{ chainId: ARC_CHAIN_ID_HEX }],
-        });
-      } catch (switchError: any) {
-        // This error code indicates that the chain has not been added to MetaMask.
-        if (switchError.code === 4902) {
-          try {
-            await window.ethereum.request({
-              method: 'wallet_addEthereumChain',
-              params: [{
-                chainId: ARC_CHAIN_ID_HEX,
-                chainName: 'Arc Testnet',
-                rpcUrls: ['https://rpc.testnet.arc.network'],
-                nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 18 },
-              }],
-            });
-          } catch (addError: any) {
-            console.error('Add chain error:', addError);
-            throw new Error('User rejected network addition: ' + (addError.message || ''));
-          }
-        } else {
-          console.error('Switch chain error:', switchError);
-          // Don't throw just yet, maybe they are already on it or we can proceed
-          if (switchError.code === 4001) throw new Error('User rejected network switch');
-        }
-      }
-
+      const provider = await ensureArcTestnet();
+      
       // 2. Request Accounts
-      const provider = new ethers.BrowserProvider(window.ethereum);
       await provider.send("eth_requestAccounts", []);
       const signer = await provider.getSigner();
       const addr = await signer.getAddress();
@@ -153,35 +166,7 @@ export default function App() {
     try {
       setIsSending(true);
 
-      const ARC_CHAIN_ID_HEX = '0x4ce752';
-      const ARC_CHAIN_ID = 5042002;
-
-      try {
-        await window.ethereum.request({
-          method: 'wallet_switchEthereumChain',
-          params: [{ chainId: ARC_CHAIN_ID_HEX }],
-        });
-      } catch (err: any) {
-        if (err.code === 4902) {
-          await window.ethereum.request({
-            method: 'wallet_addEthereumChain',
-            params: [{
-              chainId: ARC_CHAIN_ID_HEX,
-              chainName: 'Arc Testnet',
-              rpcUrls: ['https://rpc.testnet.arc.network'],
-              nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 18 },
-            }],
-          });
-        }
-      }
-
-      const provider = new ethers.BrowserProvider(window.ethereum);
-      const network = await provider.getNetwork();
-      if (Number(network.chainId) !== ARC_CHAIN_ID) {
-         showToast(`❌ Expected Arc Testnet but got Chain ID: ${network.chainId}`);
-         return;
-      }
-
+      const provider = await ensureArcTestnet();
       const signer = await provider.getSigner();
       const addr = await signer.getAddress();
       const contract = new ethers.Contract(GM_CONTRACT_ADDRESS, GM_ABI, signer);
@@ -204,7 +189,7 @@ export default function App() {
       if (error.reason) {
         showToast(`❌ Error: ${error.reason}`);
       } else {
-        showToast('❌ Transaction failed or rejected.');
+        showToast(`❌ Transaction failed or rejected.`);
       }
     } finally {
       setIsSending(false);
@@ -229,35 +214,7 @@ export default function App() {
     
     setIsSwapping(true);
     try {
-      const ARC_CHAIN_ID_HEX = '0x4ce752';
-      const ARC_CHAIN_ID = 5042002;
-
-      try {
-        await window.ethereum.request({
-          method: 'wallet_switchEthereumChain',
-          params: [{ chainId: ARC_CHAIN_ID_HEX }],
-        });
-      } catch (err: any) {
-        if (err.code === 4902) {
-          await window.ethereum.request({
-            method: 'wallet_addEthereumChain',
-            params: [{
-              chainId: ARC_CHAIN_ID_HEX,
-              chainName: 'Arc Testnet',
-              rpcUrls: ['https://rpc.testnet.arc.network'],
-              nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 18 },
-            }],
-          });
-        }
-      }
-
-      const provider = new ethers.BrowserProvider(window.ethereum);
-      const network = await provider.getNetwork();
-      if (Number(network.chainId) !== ARC_CHAIN_ID) {
-         showToast(`❌ Expected Arc Testnet but got Chain ID: ${network.chainId}`);
-         return;
-      }
-
+      const provider = await ensureArcTestnet();
       const signer = await provider.getSigner();
       const addr = await signer.getAddress();
       
@@ -270,7 +227,7 @@ export default function App() {
         to: addr,
         value: 0,
         data: ethers.hexlify(ethers.toUtf8Bytes("Arc Swap Simulated Tx")),
-        chainId: ARC_CHAIN_ID
+        chainId: 5042002
       });
       await tx.wait();
       
@@ -303,35 +260,7 @@ export default function App() {
     try {
       setIsTransferring(true);
 
-      const ARC_CHAIN_ID_HEX = '0x4ce752';
-      const ARC_CHAIN_ID = 5042002;
-
-      try {
-        await window.ethereum.request({
-          method: 'wallet_switchEthereumChain',
-          params: [{ chainId: ARC_CHAIN_ID_HEX }],
-        });
-      } catch (err: any) {
-        if (err.code === 4902) {
-          await window.ethereum.request({
-            method: 'wallet_addEthereumChain',
-            params: [{
-              chainId: ARC_CHAIN_ID_HEX,
-              chainName: 'Arc Testnet',
-              rpcUrls: ['https://rpc.testnet.arc.network'],
-              nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 18 },
-            }],
-          });
-        }
-      }
-
-      const provider = new ethers.BrowserProvider(window.ethereum);
-      const network = await provider.getNetwork();
-      if (Number(network.chainId) !== ARC_CHAIN_ID) {
-         showToast(`❌ Expected Arc Testnet but got Chain ID: ${network.chainId}`);
-         return;
-      }
-
+      const provider = await ensureArcTestnet();
       const signer = await provider.getSigner();
       
       showToast('⏳ TX Pending...');
@@ -339,7 +268,7 @@ export default function App() {
       const tx = await signer.sendTransaction({
         to: sendRecipient,
         value: ethers.parseEther(sendAmount.toString()),
-        chainId: ARC_CHAIN_ID
+        chainId: 5042002
       });
       await tx.wait();
       
