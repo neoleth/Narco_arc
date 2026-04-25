@@ -13,16 +13,42 @@ declare global {
   }
 }
 
-const GM_CONTRACT_ADDRESS = "0x6A24Cb18da1149Aa4Ef9739d2048b59378a94CA9";
-const GM_ABI = [
-  "function sendGM() external",
-  "function getStats(address) view returns (uint256,uint256,uint256,bool)"
+const HUB_CONTRACT_ADDRESS = "0x150D8A7dc747235D65c5d48784f20a913A912334";
+const HUB_ABI = [
+  "function postGM() external",
+  "function getGMInfo(address) view returns (uint256,uint256,bool)",
+  "function send(address token, address to, uint256 amount) external",
+  "function swap(address tokenIn, uint256 amountIn, uint256 minOut) external",
+  "function totalGMs() view returns (uint256)"
+];
+const USDC_ADDRESS = "0x3600000000000000000000000000000000000000";
+const EURC_ADDRESS = "0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a";
+const ERC20_ABI = [
+  "function approve(address spender, uint256 amount) external returns (bool)",
+  "function allowance(address owner, address spender) view returns (uint256)",
+  "function balanceOf(address account) view returns (uint256)"
 ];
 
 export default function App() {
   const [connected, setConnected] = useState(false);
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'gm' | 'swap' | 'send'>('gm');
+  const [activeTab, setActiveTab] = useState<'gm' | 'swap' | 'send' | 'circle'>('gm');
+  const [circleResponse, setCircleResponse] = useState<any>(null);
+  const [isCheckingCircle, setIsCheckingCircle] = useState(false);
+
+  const checkCircleAPI = async () => {
+    setIsCheckingCircle(true);
+    setCircleResponse(null);
+    try {
+      const res = await fetch("/api/circle/test");
+      const data = await res.json();
+      setCircleResponse(data);
+    } catch (err: any) {
+      setCircleResponse({ success: false, error: err.message });
+    } finally {
+      setIsCheckingCircle(false);
+    }
+  };
   const [gmStats, setGmStats] = useState({ total: 0, streak: 0, longest: 0 });
   const [gmSentToday, setGmSentToday] = useState(false);
   const [isSending, setIsSending] = useState(false);
@@ -36,7 +62,7 @@ export default function App() {
 
   const [sendRecipient, setSendRecipient] = useState('');
   const [sendAmount, setSendAmount] = useState('');
-  const [sendTokenSelected, setSendTokenSelected] = useState('ETH');
+  const [sendTokenSelected, setSendTokenSelected] = useState('USDC');
 
   // Fixed mock exchange rate (e.g., 1 ETH = 2450 USDC)
   const EXCHANGE_RATE = 2450;
@@ -134,15 +160,16 @@ export default function App() {
 
       // 3. Sync GM Stats
       try {
-        const contract = new ethers.Contract(GM_CONTRACT_ADDRESS, GM_ABI, signer);
-        const [total, streak, longest, canSendToday] = await contract.getStats(addr);
+        const contract = new ethers.Contract(HUB_CONTRACT_ADDRESS, HUB_ABI, signer);
+        const [streak, last, canGMToday] = await contract.getGMInfo(addr);
+        const totalGMs = await contract.totalGMs();
         
         setGmStats({
-          total: Number(total),
+          total: Number(totalGMs),
           streak: Number(streak),
-          longest: Number(longest),
+          longest: Number(streak),
         });
-        setGmSentToday(!canSendToday);
+        setGmSentToday(!canGMToday);
       } catch (contractError) {
         console.error("Contract Stats Error:", contractError);
         // Don't fail the whole connection just because the read failed
@@ -169,19 +196,21 @@ export default function App() {
       const provider = await ensureArcTestnet();
       const signer = await provider.getSigner();
       const addr = await signer.getAddress();
-      const contract = new ethers.Contract(GM_CONTRACT_ADDRESS, GM_ABI, signer);
+      const hub = new ethers.Contract(HUB_CONTRACT_ADDRESS, HUB_ABI, signer);
 
-      const tx = await contract.sendGM();
+      const tx = await hub.postGM();
       showToast('⏳ TX Pending...');
       await tx.wait();
 
-      const [total, streak, longest, canSendToday] = await contract.getStats(addr);
+      const [streak, last, canGMToday] = await hub.getGMInfo(addr);
+      const totalGMs = await hub.totalGMs();
+
       setGmStats({
-        total: Number(total),
+        total: Number(totalGMs),
         streak: Number(streak),
-        longest: Number(longest),
+        longest: Number(streak),
       });
-      setGmSentToday(!canSendToday);
+      setGmSentToday(!canGMToday);
       
       showToast('🌅 GM sent on-chain!');
     } catch (error: any) {
@@ -216,19 +245,21 @@ export default function App() {
     try {
       const provider = await ensureArcTestnet();
       const signer = await provider.getSigner();
-      const addr = await signer.getAddress();
       
-      showToast('⏳ TX Pending...');
+      showToast('⏳ Approving tokens...');
       
-      // Arc Testnet üzerinde henüz bir Router/DEX kontratı tanımlanmadığı için
-      // işlemi ağ üzerinde doğrulanmış gerçek bir Transaction olarak kaydetmek
-      // adına 0 ETH'lik Data payload içeren bir tx gönderiyoruz.
-      const tx = await signer.sendTransaction({
-        to: addr,
-        value: 0,
-        data: ethers.hexlify(ethers.toUtf8Bytes("Arc Swap Simulated Tx")),
-        chainId: 5042002
-      });
+      // Swap is USDC -> EURC. We need the ERC20 approve
+      const usdc = new ethers.Contract(USDC_ADDRESS, ERC20_ABI, signer);
+
+      // ERC20 interface uses 6 decimals
+      const amountIn = ethers.parseUnits(swapFromAmt.toString(), 6);
+      
+      const approveTx = await usdc.approve(HUB_CONTRACT_ADDRESS, amountIn);
+      await approveTx.wait();
+
+      showToast('⏳ Swapping on-chain...');
+      const hub = new ethers.Contract(HUB_CONTRACT_ADDRESS, HUB_ABI, signer);
+      const tx = await hub.swap(USDC_ADDRESS, amountIn, 0);
       await tx.wait();
       
       showToast(`✅ Successfully swapped on-chain!`);
@@ -263,13 +294,20 @@ export default function App() {
       const provider = await ensureArcTestnet();
       const signer = await provider.getSigner();
       
-      showToast('⏳ TX Pending...');
+      showToast('⏳ Approving tokens...');
       
-      const tx = await signer.sendTransaction({
-        to: sendRecipient,
-        value: ethers.parseEther(sendAmount.toString()),
-        chainId: 5042002
-      });
+      const tokenAddress = sendTokenSelected === "EURC" ? EURC_ADDRESS : USDC_ADDRESS;
+      const token = new ethers.Contract(tokenAddress, ERC20_ABI, signer);
+      
+      // 6 decimals for ERC20
+      const amount = ethers.parseUnits(sendAmount.toString(), 6);
+
+      const approveTx = await token.approve(HUB_CONTRACT_ADDRESS, amount);
+      await approveTx.wait();
+
+      showToast('⏳ Transferring on-chain...');
+      const hub = new ethers.Contract(HUB_CONTRACT_ADDRESS, HUB_ABI, signer);
+      const tx = await hub.send(tokenAddress, sendRecipient, amount);
       await tx.wait();
       
       showToast('✅ Transfer confirmed on Arc Testnet!');
@@ -359,29 +397,35 @@ export default function App() {
       </div>
 
       {/* TABS */}
-      <div className="flex gap-1 mx-auto mb-[32px] bg-[#0a0c10] rounded-xl p-1 w-full max-w-[500px] relative z-10">
+      <div className="flex gap-1 mx-auto mb-[32px] bg-[#0a0c10] rounded-xl p-1 w-full max-w-[600px] relative z-10">
         <button
-          className={`flex-1 px-4 py-2.5 rounded-lg text-[13px] font-semibold transition-all ${activeTab === 'gm' ? 'bg-[#111318] text-white shadow-[0_4px_12px_rgba(0,0,0,0.2)]' : 'text-[#7a8099] hover:text-[#f0f2f7] bg-transparent'}`}
+          className={`flex-1 px-3 py-2.5 rounded-lg text-[13px] font-semibold transition-all ${activeTab === 'gm' ? 'bg-[#111318] text-white shadow-[0_4px_12px_rgba(0,0,0,0.2)]' : 'text-[#7a8099] hover:text-[#f0f2f7] bg-transparent'}`}
           onClick={() => setActiveTab('gm')}
         >
           Daily GM
         </button>
         <button
-          className={`flex-1 px-4 py-2.5 rounded-lg text-[13px] font-semibold transition-all ${activeTab === 'swap' ? 'bg-[#111318] text-white shadow-[0_4px_12px_rgba(0,0,0,0.2)]' : 'text-[#7a8099] hover:text-[#f0f2f7] bg-transparent'}`}
+          className={`flex-1 px-3 py-2.5 rounded-lg text-[13px] font-semibold transition-all ${activeTab === 'swap' ? 'bg-[#111318] text-white shadow-[0_4px_12px_rgba(0,0,0,0.2)]' : 'text-[#7a8099] hover:text-[#f0f2f7] bg-transparent'}`}
           onClick={() => setActiveTab('swap')}
         >
           Swap
         </button>
         <button
-          className={`flex-1 px-4 py-2.5 rounded-lg text-[13px] font-semibold transition-all ${activeTab === 'send' ? 'bg-[#111318] text-white shadow-[0_4px_12px_rgba(0,0,0,0.2)]' : 'text-[#7a8099] hover:text-[#f0f2f7] bg-transparent'}`}
+          className={`flex-1 px-3 py-2.5 rounded-lg text-[13px] font-semibold transition-all ${activeTab === 'send' ? 'bg-[#111318] text-white shadow-[0_4px_12px_rgba(0,0,0,0.2)]' : 'text-[#7a8099] hover:text-[#f0f2f7] bg-transparent'}`}
           onClick={() => setActiveTab('send')}
         >
-          Send Tokens
+          Send
+        </button>
+        <button
+          className={`flex-1 px-3 py-2.5 rounded-lg text-[13px] font-semibold transition-all ${activeTab === 'circle' ? 'bg-[#111318] text-white shadow-[0_4px_12px_rgba(0,0,0,0.2)]' : 'text-[#7a8099] hover:text-[#f0f2f7] bg-transparent'}`}
+          onClick={() => setActiveTab('circle')}
+        >
+          Circle API
         </button>
       </div>
 
       {/* MAIN CONTENT */}
-      <div className="max-w-[500px] mx-auto px-4 pb-12 w-full">
+      <div className="max-w-[600px] mx-auto px-4 pb-12 w-full">
         {/* GM CARD */}
         {activeTab === 'gm' && (
           <div className="bg-[#111318] border border-white/[0.08] rounded-[24px] p-8 shadow-[0_40px_100px_rgba(0,0,0,0.5)]">
@@ -559,9 +603,8 @@ export default function App() {
                 value={sendTokenSelected}
                 onChange={(e) => setSendTokenSelected(e.target.value)}
               >
-                <option value="ETH">ETH (Native Gas Token)</option>
-                <option value="USDC">USDC (Needs ERC20 Address)</option>
-                <option value="ARC">ARC (Needs ERC20 Address)</option>
+                <option value="USDC">USDC (6 Decimals)</option>
+                <option value="EURC">EURC (6 Decimals)</option>
               </select>
             </div>
             
@@ -574,6 +617,40 @@ export default function App() {
             >
               {isTransferring ? 'Broadcasting...' : connected ? 'Send Tokens' : 'Connect Wallet to Send'}
             </button>
+          </div>
+        )}
+
+        {/* CIRCLE API CARD */}
+        {activeTab === 'circle' && (
+          <div className="bg-[#111318] border border-white/[0.08] rounded-[24px] p-8 shadow-[0_40px_100px_rgba(0,0,0,0.5)]">
+            <h2 className="text-xl font-bold mb-2">Circle API Status</h2>
+            <p className="text-[13px] text-[#7a8099] mb-6">
+              Test your connection and key with Circle's Web3 Services API.
+            </p>
+
+            <button
+              className={`w-full shadow-[0_10px_20px_rgba(34,197,94,0.2)] rounded-[14px] p-4 text-[15px] font-bold text-white transition-opacity 
+                ${isCheckingCircle ? 'bg-gradient-to-br from-[#22c55e] to-[#16a34a] opacity-70 cursor-wait' : 'bg-gradient-to-br from-[#22c55e] to-[#16a34a] hover:opacity-90'}
+              `}
+              onClick={checkCircleAPI}
+              disabled={isCheckingCircle}
+            >
+              {isCheckingCircle ? 'Checking API...' : 'Ping Circle API'}
+            </button>
+
+            {circleResponse && (
+              <div className="mt-6 p-4 bg-[#0a0c10] border border-white/[0.05] rounded-[16px] overflow-hidden">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className={`w-2 h-2 rounded-full ${circleResponse.success ? 'bg-[#22c55e]' : 'bg-[#ef4444]'}`}></div>
+                  <div className="text-[14px] font-semibold">
+                    {circleResponse.success ? 'Connected successfully' : 'Connection failed'}
+                  </div>
+                </div>
+                <pre className="text-[11px] text-[#7a8099] overflow-x-auto p-2 bg-[#181c24] rounded-lg">
+                  {JSON.stringify(circleResponse, null, 2)}
+                </pre>
+              </div>
+            )}
           </div>
         )}
       </div>
