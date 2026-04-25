@@ -3,9 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
-import { X, ArrowDownUp } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { X, ArrowDownUp, Camera } from 'lucide-react';
 import { ethers } from 'ethers';
+import html2canvas from 'html2canvas';
 
 declare global {
   interface Window {
@@ -63,6 +64,27 @@ export default function App() {
   const [sendRecipient, setSendRecipient] = useState('');
   const [sendAmount, setSendAmount] = useState('');
   const [sendTokenSelected, setSendTokenSelected] = useState('USDC');
+
+  const gmCardRef = useRef<HTMLDivElement>(null);
+
+  const takeScreenshot = async () => {
+    if (!gmCardRef.current) return;
+    try {
+      const canvas = await html2canvas(gmCardRef.current, {
+        backgroundColor: '#111318',
+        scale: 2,
+      });
+      const dataUrl = canvas.toDataURL('image/png');
+      const link = document.createElement('a');
+      link.download = 'narcoarc-gm-streak.png';
+      link.href = dataUrl;
+      link.click();
+      showToast('📸 Screenshot saved!');
+    } catch (err) {
+      console.error(err);
+      showToast('❌ Failed to take screenshot');
+    }
+  };
 
   // Fixed mock exchange rate (e.g., 1 ETH = 2450 USDC)
   const EXCHANGE_RATE = 2450;
@@ -428,7 +450,17 @@ export default function App() {
       <div className="max-w-[600px] mx-auto px-4 pb-12 w-full">
         {/* GM CARD */}
         {activeTab === 'gm' && (
-          <div className="bg-[#111318] border border-white/[0.08] rounded-[24px] p-8 shadow-[0_40px_100px_rgba(0,0,0,0.5)]">
+          <div ref={gmCardRef} className="bg-[#111318] border border-white/[0.08] rounded-[24px] p-8 shadow-[0_40px_100px_rgba(0,0,0,0.5)] relative">
+            
+            {/* Screenshot Button */}
+            <button
+               onClick={takeScreenshot}
+               className="absolute top-4 right-4 bg-[#181c24] border border-white/[0.08] p-2 rounded-full text-[#7a8099] hover:text-[#f0f2f7] hover:bg-[#1e2535] transition-colors"
+               title="Take Screenshot"
+            >
+              <Camera size={18} />
+            </button>
+
             <div className="text-lg font-semibold mb-1.5 hidden">Daily GM</div>
             <div className="text-[13px] text-[#7a8099] mb-6 hidden">Send a daily GM on-chain to maintain your streak and earn rewards!</div>
             <div className="grid grid-cols-3 gap-3 mb-6">
