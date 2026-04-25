@@ -1,16 +1,18 @@
-# 🚀 Narco_arc
+# 🚀 Narcoarc
 
-Narco_arc is a modular and extensible project framework designed to simplify modern software development processes. It aims to help developers rapidly prototype, scale their systems, and maintain clean, sustainable architecture.
+Narcoarc is a Next-Generation Web3 Finance Platform built to interact seamlessly with the **Arc Testnet**. Experience decentralized finance with stablecoins, offering fast and secure actions right from your browser. 
 
 ---
 
 ## 📌 Features
 
-* ⚙️ Modular and scalable architecture
-* 🧩 Easily extensible structure
-* 🚀 Optimized setup for quick start
-* 🔒 Secure and maintainable code practices
-* 📦 Compatible with modern development tools
+* **🔗 Wallet Integration:** Easily connect with MetaMask, WalletConnect, or Coinbase Wallet to Arc Testnet.
+* **🌅 GM On-Chain:** Post GM transactions on-chain to earn daily streaks and build your on-chain reputation.
+* **💱 Token Swap:** Seamlessly swap Testnet USDC to EURC right through the Narcoarc Hub contract.
+* **💸 Token Transfer:** Send stablecoins (USDC or EURC) securely to other EVM addresses.
+* **📊 Comprehensive Portfolio:** Real-time balances and transaction history sync.
+* **🔵 Circle API Integration (W3S):** Logs and verifies on-chain actions directly using Circle's Web3 Services API.
+* **📡 Real-time RPC Interactivity:** Interrogates specific smart contracts (`0x150D...`) for accurate smart contract data and pool reserves.
 
 ---
 
@@ -26,47 +28,45 @@ cd Narco_arc
 Install dependencies:
 
 ```bash
-# example (may vary depending on the project)
 npm install
-# or
-pip install -r requirements.txt
 ```
+
+Configure Environment variables by creating a `.env` file from the example:
+```bash
+cp .env.example .env
+```
+Ensure that `CIRCLE_API_KEY` is present.
 
 ---
 
 ## ▶️ Usage
 
-Run the project:
+Start the development server:
 
 ```bash
-# example command
-npm start
-# or
-python main.py
+npm run dev
 ```
+Open `http://localhost:3000` to view the application in your browser.
 
 ---
 
-## 📂 Project Structure
+## 🗺️ Smart Contracts & Network
 
-```bash
-Narco_arc/
-│── src/            # Main source code
-│── config/         # Configuration files
-│── tests/          # Test files
-│── docs/           # Documentation
-│── README.md
-```
+- **Network:** Arc Testnet (`https://rpc.testnet.arc.network`)
+- **Hub Contract:** `0x150D8A7dc747235D65c5d48784f20a913A912334`
+- **USDC Address:** `0x3600000000000000000000000000000000000000`
+- **EURC Address:** `0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a`
+
+You will need testnet USDC/EURC to interact. Visit [faucet.circle.com](https://faucet.circle.com) to fund your wallet on Arc Testnet.
 
 ---
 
 ## ⚡ Purpose
 
-Narco_arc is designed to help developers:
-
-* Build clean architectures
-* Develop reusable systems
-* Speed up development workflows
+Narcoarc serves as a unified hub demonstrating:
+* Reliable on-chain stablecoin utility via EVM tooling (`ethers.js`).
+* Modern UI/UX patterns for Web3 using React + Tailwind CSS.
+* Frictionless Circle API workflows interacting together with smart contract mechanisms.
 
 ---
 
@@ -89,7 +89,7 @@ This project is licensed under the MIT License.
 
 ## 📬 Contact
 
-For questions or suggestions, feel free to open an issue.
+For questions or suggestions, feel free to open an issue or reach out.
 
 ---
 
