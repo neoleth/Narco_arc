@@ -288,11 +288,42 @@ export default function App() {
     <>
       {/* NAVBAR */}
       <nav className="flex items-center justify-between px-8 h-[72px] border-b border-white/[0.08] bg-[#0a0c10]/80 sticky top-0 z-50 backdrop-blur-[10px]">
-        <div className="flex items-center gap-[12px] text-[18px] font-bold tracking-tight">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#4f8ef7] to-[#7c5cfc] flex items-center justify-center text-[14px] font-bold text-white">
-            N
+        <div className="flex items-center gap-3">
+          <div className="relative w-10 h-10 flex items-center justify-center">
+            <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-[0_0_10px_rgba(79,142,247,0.4)]" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="grad-a" x1="50" y1="10" x2="50" y2="90" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stopColor="#A855F7" />
+                  <stop offset="100%" stopColor="#3B82F6" />
+                </linearGradient>
+                <linearGradient id="grad-arc" x1="10" y1="80" x2="90" y2="80" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stopColor="#3B82F6" />
+                  <stop offset="100%" stopColor="#06B6D4" />
+                </linearGradient>
+              </defs>
+              
+              {/* Outer Ring */}
+              <path d="M 45 10 A 40 40 0 0 0 12 50 A 40 40 0 0 0 20 76" stroke="#4F8EF7" strokeWidth="2.5" strokeLinecap="round" opacity="0.6" />
+              <path d="M 55 10 A 40 40 0 0 1 88 50 A 40 40 0 0 1 80 76" stroke="#4F8EF7" strokeWidth="2.5" strokeLinecap="round" opacity="0.6" />
+
+              {/* The "A" shape */}
+              <path d="M 50 15 L 20 80 Q 50 65 80 80 Z" fill="url(#grad-a)" />
+              
+              {/* The swoosh/arc at the bottom */}
+              <path d="M 12 84 Q 50 64 88 84 Q 50 72 12 84 Z" fill="url(#grad-arc)" />
+
+              {/* The Star inside */}
+              <path d="M 50 48 Q 50 56 58 56 Q 50 56 50 64 Q 50 56 42 56 Q 50 56 50 48 Z" fill="#FFFFFF" opacity="0.9" />
+            </svg>
           </div>
-          <span className="tracking-[-0.5px]">Narcoarc</span>
+          <div className="flex flex-col justify-center">
+            <span className="tracking-[0.1em] uppercase text-[17px] leading-[1.1] font-bold text-transparent bg-clip-text bg-gradient-to-r from-white to-[#a6b1cc]">
+              NARCO<span className="text-[#06B6D4]">ARC</span>
+            </span>
+            <span className="text-[7px] tracking-[0.2em] text-[#7a8099] uppercase font-bold mt-[2px]">
+              Build • Connect • Transfer
+            </span>
+          </div>
         </div>
         <div className="flex items-center gap-[16px]">
           <div className="bg-[#1e2535] border border-white/[0.1] rounded-[20px] px-3 py-1.5 text-[11px] font-semibold text-[#7a8099] uppercase tracking-wide hidden sm:block">
