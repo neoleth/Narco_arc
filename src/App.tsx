@@ -20,7 +20,9 @@ const HUB_ABI = [
   "function getGMInfo(address) view returns (uint256,uint256,bool)",
   "function send(address token, address to, uint256 amount) external",
   "function swap(address tokenIn, uint256 amountIn, uint256 minOut) external",
-  "function totalGMs() view returns (uint256)"
+  "function totalGMs() view returns (uint256)",
+  "function getPoolReserves() view returns (uint256, uint256)",
+  "function addLiquidity(uint256 usdcAmount, uint256 eurcAmount) external"
 ];
 const USDC_ADDRESS = "0x3600000000000000000000000000000000000000";
 const EURC_ADDRESS = "0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a";
@@ -33,17 +35,61 @@ const ERC20_ABI = [
 export default function App() {
   const [connected, setConnected] = useState(false);
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'gm' | 'swap' | 'send' | 'circle'>('gm');
+  const [activeTab, setActiveTab] = useState<'gm' | 'swap' | 'send' | 'circle' | 'history'>('gm');
   const [circleResponse, setCircleResponse] = useState<any>(null);
   const [isCheckingCircle, setIsCheckingCircle] = useState(false);
+
+  interface TxRecord {
+    id: string;
+    type: string;
+    description: string;
+    timestamp: number;
+    status: 'success' | 'failed';
+  }
+  const [txHistory, setTxHistory] = useState<TxRecord[]>([]);
+  const [usdcBalance, setUsdcBalance] = useState('0.00');
+  const [eurcBalance, setEurcBalance] = useState('0.00');
+
+  const addTxToHistory = (type: string, description: string, status: 'success'|'failed') => {
+    setTxHistory(prev => [{
+      id: Math.random().toString(36).substr(2, 9),
+      type,
+      description,
+      timestamp: Date.now(),
+      status
+    }, ...prev]);
+  };
+
+  const triggerCircleAction = async (actionDesc: string) => {
+    try {
+      showToast(`🔄 Triggering Circle API for ${actionDesc}`);
+      const res = await fetch("/api/circle/action", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: actionDesc })
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast('🔵 Circle API Action Logged!');
+      } else {
+        showToast('⚠️ Circle API Response error');
+      }
+    } catch {
+      showToast('⚠️ Circle API server ping failed');
+    }
+  };
 
   const checkCircleAPI = async () => {
     setIsCheckingCircle(true);
     setCircleResponse(null);
     try {
       const res = await fetch("/api/circle/test");
-      const data = await res.json();
-      setCircleResponse(data);
+      if (res.headers.get("content-type")?.includes("text/html")) {
+        setCircleResponse({ success: false, error: "Received HTML. Server router misconfigured." });
+      } else {
+        const data = await res.json();
+        setCircleResponse(data);
+      }
     } catch (err: any) {
       setCircleResponse({ success: false, error: err.message });
     } finally {
@@ -64,6 +110,7 @@ export default function App() {
   const [sendRecipient, setSendRecipient] = useState('');
   const [sendAmount, setSendAmount] = useState('');
   const [sendTokenSelected, setSendTokenSelected] = useState('USDC');
+  const [poolReserves, setPoolReserves] = useState({ usdc: 0, eurc: 0 });
 
   const gmCardRef = useRef<HTMLDivElement>(null);
 
@@ -86,8 +133,8 @@ export default function App() {
     }
   };
 
-  // Fixed mock exchange rate (e.g., 1 ETH = 2450 USDC)
-  const EXCHANGE_RATE = 2450;
+  // Fixed mock exchange rate (e.g., 1 USDC = 0.92 EURC)
+  const EXCHANGE_RATE = 0.92;
 
   const handleFromChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
@@ -180,7 +227,7 @@ export default function App() {
       setIsWalletModalOpen(false);
       showToast(`✅ Connected to Arc Testnet`);
 
-      // 3. Sync GM Stats
+      // 3. Sync Stats & Reserves & Balances
       try {
         const contract = new ethers.Contract(HUB_CONTRACT_ADDRESS, HUB_ABI, signer);
         const [streak, last, canGMToday] = await contract.getGMInfo(addr);
@@ -192,6 +239,17 @@ export default function App() {
           longest: Number(streak),
         });
         setGmSentToday(!canGMToday);
+
+        const [rUsdc, rEurc] = await contract.getPoolReserves();
+        setPoolReserves({ usdc: Number(ethers.formatUnits(rUsdc, 6)), eurc: Number(ethers.formatUnits(rEurc, 6)) });
+
+        // Sync Balances
+        const usdc = new ethers.Contract(USDC_ADDRESS, ERC20_ABI, signer);
+        const eurc = new ethers.Contract(EURC_ADDRESS, ERC20_ABI, signer);
+        const usdcBal = await usdc.balanceOf(addr);
+        const eurcBal = await eurc.balanceOf(addr);
+        setUsdcBalance(Number(ethers.formatUnits(usdcBal, 6)).toFixed(2));
+        setEurcBalance(Number(ethers.formatUnits(eurcBal, 6)).toFixed(2));
       } catch (contractError) {
         console.error("Contract Stats Error:", contractError);
         // Don't fail the whole connection just because the read failed
@@ -235,6 +293,8 @@ export default function App() {
       setGmSentToday(!canGMToday);
       
       showToast('🌅 GM sent on-chain!');
+      addTxToHistory('gm', 'Daily GM Sent', 'success');
+      await triggerCircleAction('GM Posted');
     } catch (error: any) {
       console.error(error);
       if (error.reason) {
@@ -242,6 +302,7 @@ export default function App() {
       } else {
         showToast(`❌ Transaction failed or rejected.`);
       }
+      addTxToHistory('gm', 'Daily GM Failed', 'failed');
     } finally {
       setIsSending(false);
     }
@@ -287,10 +348,19 @@ export default function App() {
       showToast(`✅ Successfully swapped on-chain!`);
       setSwapFromAmt('');
       setSwapToAmt('');
+      addTxToHistory('swap', `Swapped ${swapFromAmt} USDC for EURC`, 'success');
+      
+      // Update balances
+      const eurc = new ethers.Contract(EURC_ADDRESS, ERC20_ABI, signer);
+      setUsdcBalance(Number(ethers.formatUnits(await usdc.balanceOf(signer.getAddress()), 6)).toFixed(2));
+      setEurcBalance(Number(ethers.formatUnits(await eurc.balanceOf(signer.getAddress()), 6)).toFixed(2));
+
+      await triggerCircleAction('Token Swap');
     } catch(error: any) {
       console.error(error);
       const msg = error.reason || error.message || 'Rejected';
       showToast(`❌ Swap failed: ${msg}`);
+      addTxToHistory('swap', `Swap Failed: ${msg.substring(0, 20)}...`, 'failed');
     } finally {
       setIsSwapping(false);
     }
@@ -335,10 +405,21 @@ export default function App() {
       showToast('✅ Transfer confirmed on Arc Testnet!');
       setSendAmount('');
       setSendRecipient('');
+      
+      addTxToHistory('send', `Sent ${sendAmount} ${sendTokenSelected}`, 'success');
+
+      // Update balances
+      const usdc = new ethers.Contract(USDC_ADDRESS, ERC20_ABI, signer);
+      const eurc = new ethers.Contract(EURC_ADDRESS, ERC20_ABI, signer);
+      setUsdcBalance(Number(ethers.formatUnits(await usdc.balanceOf(signer.getAddress()), 6)).toFixed(2));
+      setEurcBalance(Number(ethers.formatUnits(await eurc.balanceOf(signer.getAddress()), 6)).toFixed(2));
+
+      await triggerCircleAction(`Token Transfer (${sendTokenSelected})`);
     } catch (error: any) {
       console.error(error);
       const msg = error.reason || error.message || 'Rejected';
       showToast(`❌ Transfer failed: ${msg}`);
+      addTxToHistory('send', `Transfer Failed: ${msg.substring(0, 20)}...`, 'failed');
     } finally {
       setIsTransferring(false);
     }
@@ -527,7 +608,7 @@ export default function App() {
             <div className="bg-[#181c24] border border-white/[0.08] rounded-[16px] p-4 mb-3">
               <div className="flex justify-between text-[#7a8099] text-[12px] mb-2">
                 <span>From</span>
-                <span>Balance: {connected ? '1.24' : '0.00'} ETH</span>
+                <span>Balance: {connected ? usdcBalance : '0.00'} USDC</span>
               </div>
               <div className="flex items-center justify-between">
                 <input
@@ -538,8 +619,8 @@ export default function App() {
                   onChange={handleFromChange}
                 />
                 <button className="bg-[#1e2535] border border-white/[0.05] rounded-xl px-3 py-1.5 text-[14px] font-semibold flex items-center gap-2 transition-colors">
-                  <div className="w-5 h-5 rounded-full bg-[#4f8ef7]"></div>
-                  ETH
+                  <div className="w-5 h-5 rounded-full bg-[#22c55e]"></div>
+                  USDC
                 </button>
               </div>
             </div>
@@ -556,7 +637,7 @@ export default function App() {
             <div className="bg-[#181c24] border border-white/[0.08] rounded-[16px] p-4 mb-2 mt-3">
               <div className="flex justify-between text-[#7a8099] text-[12px] mb-2">
                 <span>To (Estimated)</span>
-                <span>Balance: 0.00 USDC</span>
+                <span>Balance: {connected ? eurcBalance : '0.00'} EURC</span>
               </div>
               <div className="flex items-center justify-between">
                 <input
@@ -567,8 +648,8 @@ export default function App() {
                   onChange={handleToChange}
                 />
                 <button className="bg-[#1e2535] border border-white/[0.05] rounded-xl px-3 py-1.5 text-[14px] font-semibold flex items-center gap-2 transition-colors">
-                  <div className="w-5 h-5 rounded-full bg-[#22c55e]"></div>
-                  USDC
+                  <div className="w-5 h-5 rounded-full bg-[#ec4899]"></div>
+                  EURC
                 </button>
               </div>
             </div>
@@ -590,11 +671,11 @@ export default function App() {
               </div>
               <div className="flex justify-between text-[12px] py-1">
                 <span className="text-[#7a8099]">Network Fee</span>
-                <span className="text-white font-medium">$1.20 USDC</span>
+                <span className="text-white font-medium">0.3% pool fee</span>
               </div>
               <div className="flex justify-between text-[12px] py-1">
                 <span className="text-[#7a8099]">Minimum Received</span>
-                <span className="text-white font-medium">1,243.80 USDC</span>
+                <span className="text-white font-medium">{swapToAmt ? (Number(swapToAmt) * 0.99).toFixed(4) : "0.00"} EURC</span>
               </div>
             </div>
           </div>
@@ -618,7 +699,10 @@ export default function App() {
             </div>
             
             <div className="mb-4">
-              <div className="text-[12px] text-[#7a8099] mb-2">Amount</div>
+              <div className="flex items-center justify-between text-[12px] text-[#7a8099] mb-2">
+                <span>Amount</span>
+                <span>Balance: {connected ? (sendTokenSelected === 'USDC' ? usdcBalance : eurcBalance) : '0.00'} {sendTokenSelected}</span>
+              </div>
               <input
                 type="number"
                 placeholder="0.0"
@@ -693,7 +777,7 @@ export default function App() {
         <a href="#" className="hover:text-[#f0f2f7] transition-colors">Developer</a>
       </div>
 
-      {/* WALLET MODAL */}
+      {/* WALLET / PROFILE MODAL */}
       {isWalletModalOpen && (
         <div
           className="fixed inset-0 bg-black/70 z-[200] flex items-center justify-center p-4"
@@ -702,49 +786,112 @@ export default function App() {
           }}
         >
           <div className="bg-[#111318] border border-white/[0.12] rounded-[20px] p-7 w-[340px] max-w-full relative shadow-2xl">
-            <div className="flex justify-between items-center mb-1.5">
-              <div className="text-[17px] font-semibold">Connect a Wallet</div>
-              <button
-                className="text-[#7a8099] hover:text-[#f0f2f7] transition-colors"
-                onClick={() => setIsWalletModalOpen(false)}
-              >
-                <X size={18} />
-              </button>
-            </div>
-            <div className="text-[13px] text-[#7a8099] mb-5">Choose your wallet to connect to Arc Testnet</div>
-            
-            <div
-              className="flex items-center gap-3 p-3.5 border border-white/[0.08] hover:border-[#4f8ef7] hover:bg-[#4f8ef7]/10 rounded-xl mb-2.5 cursor-pointer transition-all"
-              onClick={() => connectWallet('MetaMask')}
-            >
-              <div className="w-9 h-9 rounded-lg bg-[#f6851b]/10 flex items-center justify-center text-[18px]">🦊</div>
-              <div>
-                <div className="text-sm font-medium">MetaMask</div>
-                <div className="text-[11px] text-[#7a8099]">Popular browser extension wallet</div>
-              </div>
-            </div>
-            
-            <div
-              className="flex items-center gap-3 p-3.5 border border-white/[0.08] hover:border-[#4f8ef7] hover:bg-[#4f8ef7]/10 rounded-xl mb-2.5 cursor-pointer transition-all"
-              onClick={() => connectWallet('WalletConnect')}
-            >
-              <div className="w-9 h-9 rounded-lg bg-[#3b99fc]/10 flex items-center justify-center text-[18px]">🔗</div>
-              <div>
-                <div className="text-sm font-medium">WalletConnect</div>
-                <div className="text-[11px] text-[#7a8099]">Scan with any mobile wallet</div>
-              </div>
-            </div>
-            
-            <div
-              className="flex items-center gap-3 p-3.5 border border-white/[0.08] hover:border-[#4f8ef7] hover:bg-[#4f8ef7]/10 rounded-xl cursor-pointer transition-all"
-              onClick={() => connectWallet('Coinbase Wallet')}
-            >
-              <div className="w-9 h-9 rounded-lg bg-[#0052ff]/10 flex items-center justify-center text-[18px]">🔵</div>
-              <div>
-                <div className="text-sm font-medium">Coinbase Wallet</div>
-                <div className="text-[11px] text-[#7a8099]">Connect using Coinbase</div>
-              </div>
-            </div>
+            {connected ? (
+              <>
+                <div className="flex justify-between items-center mb-5">
+                  <div className="text-[17px] font-semibold">Profile</div>
+                  <button
+                    className="text-[#7a8099] hover:text-[#f0f2f7] transition-colors"
+                    onClick={() => setIsWalletModalOpen(false)}
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+                
+                <div className="mb-5">
+                  <div className="text-[12px] text-[#7a8099] mb-1">Connected Address</div>
+                  <div className="text-sm font-medium">{walletAddress}</div>
+                </div>
+
+                <div className="bg-[#181c24] border border-white/[0.08] rounded-[16px] p-4 mb-5">
+                  <div className="text-[12px] text-[#7a8099] mb-3">Balances</div>
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-sm">USDC</span>
+                    <span className="font-medium text-[#22c55e]">{usdcBalance}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm">EURC</span>
+                    <span className="font-medium text-[#ec4899]">{eurcBalance}</span>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-[12px] text-[#7a8099] mb-3 flex items-center justify-between">
+                    <span>Recent Activity</span>
+                  </div>
+                  {txHistory.length === 0 ? (
+                    <div className="text-[12px] text-center text-[#7a8099] py-4 bg-[#181c24]/50 rounded-xl">No recent transactions</div>
+                  ) : (
+                    <div className="space-y-2 max-h-[160px] overflow-y-auto pr-1 custom-scrollbar">
+                      {txHistory.map(tx => (
+                        <div key={tx.id} className="bg-[#181c24] border border-white/[0.05] rounded-xl p-3 flex justify-between items-center">
+                          <div>
+                            <div className="text-[13px] font-medium mb-0.5">{tx.description}</div>
+                            <div className="text-[10px] text-[#7a8099]">{new Date(tx.timestamp).toLocaleTimeString()}</div>
+                          </div>
+                          <div className={`text-[11px] font-bold px-2 py-1 rounded-md ${tx.status === 'success' ? 'bg-[#22c55e]/10 text-[#22c55e]' : 'bg-red-500/10 text-red-500'}`}>
+                            {tx.status.toUpperCase()}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <button 
+                  onClick={() => { setConnected(false); setIsWalletModalOpen(false); setWalletAddress(null); }}
+                  className="w-full mt-6 py-2.5 rounded-xl border border-red-500/20 text-red-400 hover:bg-red-500/10 text-sm font-semibold transition-colors"
+                >
+                  Disconnect Wallet
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="flex justify-between items-center mb-1.5">
+                  <div className="text-[17px] font-semibold">Connect a Wallet</div>
+                  <button
+                    className="text-[#7a8099] hover:text-[#f0f2f7] transition-colors"
+                    onClick={() => setIsWalletModalOpen(false)}
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+                <div className="text-[13px] text-[#7a8099] mb-5">Choose your wallet to connect to Arc Testnet</div>
+                
+                <div
+                  className="flex items-center gap-3 p-3.5 border border-white/[0.08] hover:border-[#4f8ef7] hover:bg-[#4f8ef7]/10 rounded-xl mb-2.5 cursor-pointer transition-all"
+                  onClick={() => connectWallet('MetaMask')}
+                >
+                  <div className="w-9 h-9 rounded-lg bg-[#f6851b]/10 flex items-center justify-center text-[18px]">🦊</div>
+                  <div>
+                    <div className="text-sm font-medium">MetaMask</div>
+                    <div className="text-[11px] text-[#7a8099]">Popular browser extension wallet</div>
+                  </div>
+                </div>
+                
+                <div
+                  className="flex items-center gap-3 p-3.5 border border-white/[0.08] hover:border-[#4f8ef7] hover:bg-[#4f8ef7]/10 rounded-xl mb-2.5 cursor-pointer transition-all"
+                  onClick={() => connectWallet('WalletConnect')}
+                >
+                  <div className="w-9 h-9 rounded-lg bg-[#3b99fc]/10 flex items-center justify-center text-[18px]">🔗</div>
+                  <div>
+                    <div className="text-sm font-medium">WalletConnect</div>
+                    <div className="text-[11px] text-[#7a8099]">Scan with any mobile wallet</div>
+                  </div>
+                </div>
+                
+                <div
+                  className="flex items-center gap-3 p-3.5 border border-white/[0.08] hover:border-[#4f8ef7] hover:bg-[#4f8ef7]/10 rounded-xl cursor-pointer transition-all"
+                  onClick={() => connectWallet('Coinbase Wallet')}
+                >
+                  <div className="w-9 h-9 rounded-lg bg-[#0052ff]/10 flex items-center justify-center text-[18px]">🔵</div>
+                  <div>
+                    <div className="text-sm font-medium">Coinbase Wallet</div>
+                    <div className="text-[11px] text-[#7a8099]">Connect using Coinbase</div>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
