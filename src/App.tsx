@@ -152,7 +152,36 @@ export default function App() {
     
     try {
       setIsSending(true);
+
+      const ARC_CHAIN_ID_HEX = '0x4ce752';
+      const ARC_CHAIN_ID = 5042002;
+
+      try {
+        await window.ethereum.request({
+          method: 'wallet_switchEthereumChain',
+          params: [{ chainId: ARC_CHAIN_ID_HEX }],
+        });
+      } catch (err: any) {
+        if (err.code === 4902) {
+          await window.ethereum.request({
+            method: 'wallet_addEthereumChain',
+            params: [{
+              chainId: ARC_CHAIN_ID_HEX,
+              chainName: 'Arc Testnet',
+              rpcUrls: ['https://rpc.testnet.arc.network'],
+              nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 18 },
+            }],
+          });
+        }
+      }
+
       const provider = new ethers.BrowserProvider(window.ethereum);
+      const network = await provider.getNetwork();
+      if (Number(network.chainId) !== ARC_CHAIN_ID) {
+         showToast(`❌ Expected Arc Testnet but got Chain ID: ${network.chainId}`);
+         return;
+      }
+
       const signer = await provider.getSigner();
       const addr = await signer.getAddress();
       const contract = new ethers.Contract(GM_CONTRACT_ADDRESS, GM_ABI, signer);
@@ -200,7 +229,35 @@ export default function App() {
     
     setIsSwapping(true);
     try {
+      const ARC_CHAIN_ID_HEX = '0x4ce752';
+      const ARC_CHAIN_ID = 5042002;
+
+      try {
+        await window.ethereum.request({
+          method: 'wallet_switchEthereumChain',
+          params: [{ chainId: ARC_CHAIN_ID_HEX }],
+        });
+      } catch (err: any) {
+        if (err.code === 4902) {
+          await window.ethereum.request({
+            method: 'wallet_addEthereumChain',
+            params: [{
+              chainId: ARC_CHAIN_ID_HEX,
+              chainName: 'Arc Testnet',
+              rpcUrls: ['https://rpc.testnet.arc.network'],
+              nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 18 },
+            }],
+          });
+        }
+      }
+
       const provider = new ethers.BrowserProvider(window.ethereum);
+      const network = await provider.getNetwork();
+      if (Number(network.chainId) !== ARC_CHAIN_ID) {
+         showToast(`❌ Expected Arc Testnet but got Chain ID: ${network.chainId}`);
+         return;
+      }
+
       const signer = await provider.getSigner();
       const addr = await signer.getAddress();
       
@@ -212,7 +269,8 @@ export default function App() {
       const tx = await signer.sendTransaction({
         to: addr,
         value: 0,
-        data: ethers.hexlify(ethers.toUtf8Bytes("Arc Swap Simulated Tx"))
+        data: ethers.hexlify(ethers.toUtf8Bytes("Arc Swap Simulated Tx")),
+        chainId: ARC_CHAIN_ID
       });
       await tx.wait();
       
@@ -244,16 +302,44 @@ export default function App() {
 
     try {
       setIsTransferring(true);
+
+      const ARC_CHAIN_ID_HEX = '0x4ce752';
+      const ARC_CHAIN_ID = 5042002;
+
+      try {
+        await window.ethereum.request({
+          method: 'wallet_switchEthereumChain',
+          params: [{ chainId: ARC_CHAIN_ID_HEX }],
+        });
+      } catch (err: any) {
+        if (err.code === 4902) {
+          await window.ethereum.request({
+            method: 'wallet_addEthereumChain',
+            params: [{
+              chainId: ARC_CHAIN_ID_HEX,
+              chainName: 'Arc Testnet',
+              rpcUrls: ['https://rpc.testnet.arc.network'],
+              nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 18 },
+            }],
+          });
+        }
+      }
+
       const provider = new ethers.BrowserProvider(window.ethereum);
+      const network = await provider.getNetwork();
+      if (Number(network.chainId) !== ARC_CHAIN_ID) {
+         showToast(`❌ Expected Arc Testnet but got Chain ID: ${network.chainId}`);
+         return;
+      }
+
       const signer = await provider.getSigner();
       
       showToast('⏳ TX Pending...');
       
-      // Native transfer for ETH, if anything else is selected they ideally need ERC20 ABI
-      // We process all as native transfers logic for the sake of the Testnet on-chain recording
       const tx = await signer.sendTransaction({
         to: sendRecipient,
-        value: ethers.parseEther(sendAmount.toString())
+        value: ethers.parseEther(sendAmount.toString()),
+        chainId: ARC_CHAIN_ID
       });
       await tx.wait();
       
