@@ -257,10 +257,14 @@ export default function App() {
       }
 
     } catch (error: any) {
-      console.error("Connection Error:", error);
       setIsWalletModalOpen(false);
       const msg = error.reason || error.message || 'failed';
-      showToast(`❌ Connection cancelled or failed. ${msg}`);
+      if (msg.includes('User rejected network switch') || error.code === 4001 || msg.includes('User rejected')) {
+        showToast(`❌ Wallet connection cancelled.`);
+      } else {
+        console.error("Connection Error:", error);
+        showToast(`❌ Connection failed. ${msg}`);
+      }
     }
   };
 
@@ -296,13 +300,14 @@ export default function App() {
       addTxToHistory('gm', 'Daily GM Sent', 'success');
       await triggerCircleAction('GM Posted');
     } catch (error: any) {
-      console.error(error);
-      if (error.reason) {
-        showToast(`❌ Error: ${error.reason}`);
+      const msg = error.reason || error.message || '';
+      if (msg.includes('User rejected network switch') || error.code === 4001 || msg.includes('User rejected')) {
+        showToast('❌ Transaction cancelled.');
       } else {
+        console.error(error);
         showToast(`❌ Transaction failed or rejected.`);
+        addTxToHistory('gm', 'Daily GM Failed', 'failed');
       }
-      addTxToHistory('gm', 'Daily GM Failed', 'failed');
     } finally {
       setIsSending(false);
     }
@@ -357,10 +362,14 @@ export default function App() {
 
       await triggerCircleAction('Token Swap');
     } catch(error: any) {
-      console.error(error);
       const msg = error.reason || error.message || 'Rejected';
-      showToast(`❌ Swap failed: ${msg}`);
-      addTxToHistory('swap', `Swap Failed: ${msg.substring(0, 20)}...`, 'failed');
+      if (msg.includes('User rejected network switch') || error.code === 4001 || msg.includes('User rejected')) {
+        showToast(`❌ Swap cancelled.`);
+      } else {
+        console.error(error);
+        showToast(`❌ Swap failed: ${msg}`);
+        addTxToHistory('swap', `Swap Failed: ${msg.substring(0, 20)}...`, 'failed');
+      }
     } finally {
       setIsSwapping(false);
     }
@@ -416,10 +425,14 @@ export default function App() {
 
       await triggerCircleAction(`Token Transfer (${sendTokenSelected})`);
     } catch (error: any) {
-      console.error(error);
       const msg = error.reason || error.message || 'Rejected';
-      showToast(`❌ Transfer failed: ${msg}`);
-      addTxToHistory('send', `Transfer Failed: ${msg.substring(0, 20)}...`, 'failed');
+      if (msg.includes('User rejected network switch') || error.code === 4001 || msg.includes('User rejected')) {
+        showToast(`❌ Transfer cancelled.`);
+      } else {
+        console.error(error);
+        showToast(`❌ Transfer failed: ${msg}`);
+        addTxToHistory('send', `Transfer Failed: ${msg.substring(0, 20)}...`, 'failed');
+      }
     } finally {
       setIsTransferring(false);
     }

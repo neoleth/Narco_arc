@@ -70,6 +70,35 @@ Narcoarc serves as a unified hub demonstrating:
 
 ---
 
+## 🧰 Tools & Resources
+
+### ARC CLI
+Includes RPC access to a Canteen-hosted Arc testnet, plus Arc repos and docs pre-bundled as agent context, so your coding agent can build against Arc out of the box.
+```bash
+uv tool install git+https://github.com/the-canteen-dev/ARC-cli
+```
+* **Docs:** [arc-node.thecanteenapp.com](https://arc-node.thecanteenapp.com)
+* **Repo:** [github.com/the-canteen-dev/ARC-cli](https://github.com/the-canteen-dev/ARC-cli)
+
+### Circle CLI
+A unified interface for agent wallets, x402-compatible payments, and crosschain USDC transfers, straight from the command line. Requires Node.js v20.18.2+.
+```bash
+npm install -g @circle-fin/cli
+```
+* **Docs:** [developers.circle.com/agent-stack/circle-cli](https://developers.circle.com/agent-stack/circle-cli)
+
+### Arc 101
+Get started with Arc, the Circle Agent Stack and Nanopayments. Walk through the Arc 101 demo to see the full stack come together, then clone the companion repo to build from a working example.
+```bash
+git clone https://github.com/the-canteen-dev/circle-agent
+```
+* **Repo:** [github.com/the-canteen-dev/circle-agent](https://github.com/the-canteen-dev/circle-agent)
+
+### Reading
+* **Distribution Bootstrap for Payments Founders:** [Read the Analysis](https://thecanteenapp.com/analysis/2026/05/28/distribution-bootstrap-payments-founders.html) - Sketches eight starting points to deploy, attaching payments to open-source communities.
+
+---
+
 ## 🤝 Contributing
 
 Contributions are welcome!
