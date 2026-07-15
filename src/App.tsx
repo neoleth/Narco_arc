@@ -228,8 +228,10 @@ export default function App() {
       showToast(`✅ Connected to Arc Testnet`);
 
       // 3. Sync Stats & Reserves & Balances
+      const contract = new ethers.Contract(HUB_CONTRACT_ADDRESS, HUB_ABI, signer);
+      
+      let gotStats = false;
       try {
-        const contract = new ethers.Contract(HUB_CONTRACT_ADDRESS, HUB_ABI, signer);
         const [streak, last, canGMToday] = await contract.getGMInfo(addr);
         const totalGMs = await contract.totalGMs();
         
@@ -239,10 +241,19 @@ export default function App() {
           longest: Number(streak),
         });
         setGmSentToday(!canGMToday);
+        gotStats = true;
+      } catch (e) {
+        console.error("Failed to fetch GM stats:", e);
+      }
 
+      try {
         const [rUsdc, rEurc] = await contract.getPoolReserves();
         setPoolReserves({ usdc: Number(ethers.formatUnits(rUsdc, 6)), eurc: Number(ethers.formatUnits(rEurc, 6)) });
+      } catch (e) {
+        console.error("Failed to fetch pool reserves:", e);
+      }
 
+      try {
         // Sync Balances
         const usdc = new ethers.Contract(USDC_ADDRESS, ERC20_ABI, signer);
         const eurc = new ethers.Contract(EURC_ADDRESS, ERC20_ABI, signer);
@@ -250,9 +261,11 @@ export default function App() {
         const eurcBal = await eurc.balanceOf(addr);
         setUsdcBalance(Number(ethers.formatUnits(usdcBal, 6)).toFixed(2));
         setEurcBalance(Number(ethers.formatUnits(eurcBal, 6)).toFixed(2));
-      } catch (contractError) {
-        console.error("Contract Stats Error:", contractError);
-        // Don't fail the whole connection just because the read failed
+      } catch (e) {
+        console.error("Failed to fetch balances:", e);
+      }
+
+      if (!gotStats) {
         showToast(`⚠️ Connected, but could not read stats from contract`);
       }
 
@@ -440,25 +453,27 @@ export default function App() {
 
   return (
     <>
+      <div className="fixed inset-0 pointer-events-none z-[-1] bg-stars"></div>
+      
       {/* NAVBAR */}
-      <nav className="flex items-center justify-between px-8 h-[72px] border-b border-white/[0.08] bg-[#0a0c10]/80 sticky top-0 z-50 backdrop-blur-[10px]">
+      <nav className="flex items-center justify-between px-8 h-[72px] border-b border-white/[0.08] bg-[#030610]/80 sticky top-0 z-50 backdrop-blur-md">
         <div className="flex items-center gap-3">
           <div className="relative w-10 h-10 flex items-center justify-center">
-            <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-[0_0_10px_rgba(79,142,247,0.4)]" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-[0_0_10px_rgba(0,240,255,0.4)]" fill="none" xmlns="http://www.w3.org/2000/svg">
               <defs>
                 <linearGradient id="grad-a" x1="50" y1="10" x2="50" y2="90" gradientUnits="userSpaceOnUse">
-                  <stop offset="0%" stopColor="#A855F7" />
-                  <stop offset="100%" stopColor="#3B82F6" />
+                  <stop offset="0%" stopColor="#b53cff" />
+                  <stop offset="100%" stopColor="#00f0ff" />
                 </linearGradient>
                 <linearGradient id="grad-arc" x1="10" y1="80" x2="90" y2="80" gradientUnits="userSpaceOnUse">
-                  <stop offset="0%" stopColor="#3B82F6" />
-                  <stop offset="100%" stopColor="#06B6D4" />
+                  <stop offset="0%" stopColor="#00f0ff" />
+                  <stop offset="100%" stopColor="#b53cff" />
                 </linearGradient>
               </defs>
               
               {/* Outer Ring */}
-              <path d="M 45 10 A 40 40 0 0 0 12 50 A 40 40 0 0 0 20 76" stroke="#4F8EF7" strokeWidth="2.5" strokeLinecap="round" opacity="0.6" />
-              <path d="M 55 10 A 40 40 0 0 1 88 50 A 40 40 0 0 1 80 76" stroke="#4F8EF7" strokeWidth="2.5" strokeLinecap="round" opacity="0.6" />
+              <path d="M 45 10 A 40 40 0 0 0 12 50 A 40 40 0 0 0 20 76" stroke="#b53cff" strokeWidth="2.5" strokeLinecap="round" opacity="0.8" />
+              <path d="M 55 10 A 40 40 0 0 1 88 50 A 40 40 0 0 1 80 76" stroke="#00f0ff" strokeWidth="2.5" strokeLinecap="round" opacity="0.8" />
 
               {/* The "A" shape */}
               <path d="M 50 15 L 20 80 Q 50 65 80 80 Z" fill="url(#grad-a)" />
@@ -471,30 +486,30 @@ export default function App() {
             </svg>
           </div>
           <div className="flex flex-col justify-center">
-            <span className="tracking-[0.1em] uppercase text-[17px] leading-[1.1] font-bold text-transparent bg-clip-text bg-gradient-to-r from-white to-[#a6b1cc]">
-              NARCO<span className="text-[#06B6D4]">ARC</span>
+            <span className="tracking-[0.1em] uppercase text-[18px] leading-[1.1] font-bold text-transparent bg-clip-text bg-gradient-to-r from-[#b53cff] to-[#00f0ff]">
+              NARCOARC
             </span>
-            <span className="text-[7px] tracking-[0.2em] text-[#7a8099] uppercase font-bold mt-[2px]">
+            <span className="text-[7px] tracking-[0.2em] text-[#00f0ff] uppercase font-bold mt-[2px] opacity-80">
               Build • Connect • Transfer
             </span>
           </div>
         </div>
         <div className="flex items-center gap-[16px]">
-          <div className="bg-[#1e2535] border border-white/[0.1] rounded-[20px] px-3 py-1.5 text-[11px] font-semibold text-[#7a8099] uppercase tracking-wide hidden sm:block">
+          <div className="bg-[#1e2535] border border-white/[0.1] rounded-[20px] px-3 py-1.5 text-[11px] font-semibold text-[#00f0ff] uppercase tracking-wide hidden sm:block">
             Testnet Phase 2
           </div>
           <div
-            className="bg-[#111318] border border-white/[0.05] rounded-[12px] px-3 py-1.5 text-[14px] font-semibold text-[#f0f2f7] cursor-pointer flex items-center gap-2 hover:border-white/[0.1] transition-colors"
+            className="bg-[#111318] border border-[#00f0ff]/20 rounded-[12px] px-3 py-1.5 text-[14px] font-semibold text-[#f0f2f7] cursor-pointer flex items-center gap-2 hover:border-[#00f0ff]/40 hover:shadow-[0_0_10px_rgba(0,240,255,0.2)] transition-all"
             onClick={() => setIsWalletModalOpen(true)}
           >
             <div className="w-[20px] h-[20px] rounded-full bg-[#22c55e] flex-shrink-0"></div>
             <span className="hidden sm:inline">Arc Testnet</span>
           </div>
           <button
-            className={`rounded-[10px] px-5 py-2.5 text-[13px] font-semibold transition-colors
+            className={`rounded-[10px] px-5 py-2.5 text-[13px] font-semibold transition-all shadow-lg
               ${connected 
-                ? 'bg-[#181c24] border border-white/[0.12] text-[#f0f2f7] hover:bg-[#181c24]/80' 
-                : 'bg-gradient-to-br from-[#4f8ef7] to-[#7c5cfc] text-white hover:opacity-90 border-none'
+                ? 'bg-[#181c24] border border-[#b53cff]/20 text-[#f0f2f7] hover:bg-[#181c24]/80 hover:shadow-[0_0_15px_rgba(181,60,255,0.2)]' 
+                : 'bg-gradient-to-br from-[#b53cff] to-[#00f0ff] text-[#030610] hover:opacity-90 border-none'
               }
             `}
             onClick={() => setIsWalletModalOpen(true)}
@@ -505,35 +520,38 @@ export default function App() {
       </nav>
 
       {/* HERO */}
-      <div className="text-center pt-10 px-5 pb-8">
-        <h1 className="text-[42px] m-0 font-bold tracking-[-1.5px] text-transparent bg-clip-text bg-gradient-to-b from-white to-[#999] mb-2">
-          Arc DeFi Hub
-        </h1>
-        <p className="text-[#7a8099] text-[16px] mt-2">Swap, Stake, and earn streaks on the next generation of Arc.</p>
+      <div className="text-center pt-16 px-5 pb-10">
+        <div className="inline-block relative">
+          <div className="absolute inset-0 bg-[#00f0ff] blur-[40px] opacity-20 rounded-full"></div>
+          <h1 className="relative text-[52px] sm:text-[64px] m-0 font-bold tracking-[0.05em] text-transparent bg-clip-text bg-gradient-to-r from-[#b53cff] via-[#7d6aff] to-[#00f0ff] mb-2 uppercase hud-border p-4">
+            NARCOARC
+          </h1>
+        </div>
+        <p className="text-[#00f0ff]/80 text-[14px] sm:text-[16px] mt-4 font-mono uppercase tracking-[0.15em]">Build • Connect • Transfer</p>
       </div>
 
       {/* TABS */}
-      <div className="flex gap-1 mx-auto mb-[32px] bg-[#0a0c10] rounded-xl p-1 w-full max-w-[600px] relative z-10">
+      <div className="flex gap-1 mx-auto mb-[32px] bg-[#030610]/80 border border-white/[0.05] backdrop-blur-md rounded-xl p-1 w-full max-w-[600px] relative z-10 shadow-[0_0_20px_rgba(0,240,255,0.05)]">
         <button
-          className={`flex-1 px-3 py-2.5 rounded-lg text-[13px] font-semibold transition-all ${activeTab === 'gm' ? 'bg-[#111318] text-white shadow-[0_4px_12px_rgba(0,0,0,0.2)]' : 'text-[#7a8099] hover:text-[#f0f2f7] bg-transparent'}`}
+          className={`flex-1 px-3 py-2.5 rounded-lg text-[13px] font-semibold transition-all ${activeTab === 'gm' ? 'bg-[#b53cff]/10 border border-[#b53cff]/30 text-white shadow-[0_0_15px_rgba(181,60,255,0.2)]' : 'text-[#7a8099] hover:text-[#00f0ff] bg-transparent'}`}
           onClick={() => setActiveTab('gm')}
         >
           Daily GM
         </button>
         <button
-          className={`flex-1 px-3 py-2.5 rounded-lg text-[13px] font-semibold transition-all ${activeTab === 'swap' ? 'bg-[#111318] text-white shadow-[0_4px_12px_rgba(0,0,0,0.2)]' : 'text-[#7a8099] hover:text-[#f0f2f7] bg-transparent'}`}
+          className={`flex-1 px-3 py-2.5 rounded-lg text-[13px] font-semibold transition-all ${activeTab === 'swap' ? 'bg-gradient-to-r from-[#b53cff]/10 to-[#00f0ff]/10 border border-[#00f0ff]/30 text-white shadow-[0_0_15px_rgba(0,240,255,0.2)]' : 'text-[#7a8099] hover:text-[#00f0ff] bg-transparent'}`}
           onClick={() => setActiveTab('swap')}
         >
           Swap
         </button>
         <button
-          className={`flex-1 px-3 py-2.5 rounded-lg text-[13px] font-semibold transition-all ${activeTab === 'send' ? 'bg-[#111318] text-white shadow-[0_4px_12px_rgba(0,0,0,0.2)]' : 'text-[#7a8099] hover:text-[#f0f2f7] bg-transparent'}`}
+          className={`flex-1 px-3 py-2.5 rounded-lg text-[13px] font-semibold transition-all ${activeTab === 'send' ? 'bg-[#00f0ff]/10 border border-[#00f0ff]/30 text-white shadow-[0_0_15px_rgba(0,240,255,0.2)]' : 'text-[#7a8099] hover:text-[#00f0ff] bg-transparent'}`}
           onClick={() => setActiveTab('send')}
         >
           Send
         </button>
         <button
-          className={`flex-1 px-3 py-2.5 rounded-lg text-[13px] font-semibold transition-all ${activeTab === 'circle' ? 'bg-[#111318] text-white shadow-[0_4px_12px_rgba(0,0,0,0.2)]' : 'text-[#7a8099] hover:text-[#f0f2f7] bg-transparent'}`}
+          className={`flex-1 px-3 py-2.5 rounded-lg text-[13px] font-semibold transition-all ${activeTab === 'circle' ? 'bg-white/10 border border-white/20 text-white shadow-[0_0_15px_rgba(255,255,255,0.1)]' : 'text-[#7a8099] hover:text-white bg-transparent'}`}
           onClick={() => setActiveTab('circle')}
         >
           Circle API
@@ -544,12 +562,12 @@ export default function App() {
       <div className="max-w-[600px] mx-auto px-4 pb-12 w-full">
         {/* GM CARD */}
         {activeTab === 'gm' && (
-          <div ref={gmCardRef} className="bg-[#111318] border border-white/[0.08] rounded-[24px] p-8 shadow-[0_40px_100px_rgba(0,0,0,0.5)] relative">
+          <div ref={gmCardRef} className="bg-[#030610]/80 backdrop-blur-md border border-[#b53cff]/30 rounded-[24px] p-8 shadow-[0_0_40px_rgba(181,60,255,0.15)] relative overflow-hidden hud-border">
             
             {/* Screenshot Button */}
             <button
                onClick={takeScreenshot}
-               className="absolute top-4 right-4 bg-[#181c24] border border-white/[0.08] p-2 rounded-full text-[#7a8099] hover:text-[#f0f2f7] hover:bg-[#1e2535] transition-colors"
+               className="absolute top-4 right-4 bg-[#181c24] border border-[#00f0ff]/30 p-2 rounded-full text-[#00f0ff] hover:text-white hover:bg-[#00f0ff]/20 hover:shadow-[0_0_10px_rgba(0,240,255,0.5)] transition-all z-20"
                title="Take Screenshot"
             >
               <Camera size={18} />
@@ -558,34 +576,34 @@ export default function App() {
             <div className="text-lg font-semibold mb-1.5 hidden">Daily GM</div>
             <div className="text-[13px] text-[#7a8099] mb-6 hidden">Send a daily GM on-chain to maintain your streak and earn rewards!</div>
             <div className="grid grid-cols-3 gap-3 mb-6">
-              <div className="bg-[#181c24] border border-white/[0.08] rounded-xl p-4 text-center">
-                <div className="text-[11px] text-[#7a8099] mb-1.5 uppercase tracking-wide">Total GMs</div>
-                <div className="text-2xl font-bold">{gmStats.total}</div>
+              <div className="bg-[#030610] border border-[#b53cff]/20 rounded-xl p-4 text-center shadow-[inset_0_0_20px_rgba(181,60,255,0.05)]">
+                <div className="text-[11px] text-[#b53cff] mb-1.5 uppercase tracking-widest font-mono">Total GMs</div>
+                <div className="text-2xl font-bold text-white">{gmStats.total}</div>
               </div>
-              <div className="bg-[#181c24] border border-white/[0.08] rounded-xl p-4 text-center">
-                <div className="text-[11px] text-[#7a8099] mb-1.5 uppercase tracking-wide">Streak</div>
-                <div className="text-2xl font-bold">{gmStats.streak}</div>
+              <div className="bg-[#030610] border border-[#00f0ff]/20 rounded-xl p-4 text-center shadow-[inset_0_0_20px_rgba(0,240,255,0.05)]">
+                <div className="text-[11px] text-[#00f0ff] mb-1.5 uppercase tracking-widest font-mono">Streak</div>
+                <div className="text-2xl font-bold text-white">{gmStats.streak}</div>
               </div>
-              <div className="bg-[#181c24] border border-white/[0.08] rounded-xl p-4 text-center">
-                <div className="text-[11px] text-[#7a8099] mb-1.5 uppercase tracking-wide">Longest</div>
-                <div className="text-2xl font-bold">{gmStats.longest}</div>
+              <div className="bg-[#030610] border border-white/10 rounded-xl p-4 text-center">
+                <div className="text-[11px] text-[#7a8099] mb-1.5 uppercase tracking-widest font-mono">Longest</div>
+                <div className="text-2xl font-bold text-white">{gmStats.longest}</div>
               </div>
             </div>
             {!connected ? (
               <button
-                className="w-full bg-gradient-to-br from-[#4f8ef7] to-[#7c5cfc] rounded-[14px] p-4 text-[15px] font-bold text-white mt-6 mb-5 shadow-[0_10px_20px_rgba(79,142,247,0.2)] hover:opacity-90 transition-opacity"
+                className="w-full bg-gradient-to-r from-[#b53cff] to-[#00f0ff] rounded-[14px] p-4 text-[15px] font-bold text-[#030610] mt-6 mb-5 shadow-[0_0_20px_rgba(0,240,255,0.3)] hover:opacity-90 transition-opacity uppercase tracking-wider"
                 onClick={() => setIsWalletModalOpen(true)}
               >
                 Connect Wallet
               </button>
             ) : (
               <button
-                className={`w-full rounded-[14px] p-4 text-[15px] font-bold mt-6 mb-5 transition-all
+                className={`w-full rounded-[14px] p-4 text-[15px] font-bold mt-6 mb-5 transition-all uppercase tracking-wider
                   ${gmSentToday 
                     ? 'bg-[#181c24] text-[#7a8099] border border-white/[0.08] cursor-not-allowed' 
                     : isSending 
-                      ? 'bg-gradient-to-br from-[#4f8ef7] to-[#7c5cfc] opacity-70 text-white cursor-wait'
-                      : 'bg-gradient-to-br from-[#4f8ef7] to-[#7c5cfc] text-white shadow-[0_10px_20px_rgba(79,142,247,0.2)] hover:opacity-90'}
+                      ? 'bg-gradient-to-r from-[#b53cff] to-[#00f0ff] opacity-70 text-[#030610] cursor-wait'
+                      : 'bg-gradient-to-r from-[#b53cff] to-[#00f0ff] text-[#030610] shadow-[0_0_20px_rgba(0,240,255,0.3)] hover:opacity-90'}
                 `}
                 onClick={sendGM}
                 disabled={gmSentToday || isSending}
@@ -593,7 +611,7 @@ export default function App() {
                 {gmSentToday ? '✓ GM Sent Today!' : isSending ? 'Sending...' : '🌅 Send GM'}
               </button>
             )}
-            <div className="h-px bg-white/[0.08] my-5"></div>
+            <div className="h-px bg-gradient-to-r from-transparent via-[#00f0ff]/30 to-transparent my-5"></div>
             <div className="flex justify-between items-center text-[13px] py-1.5">
               <span className="text-[#7a8099]">Network</span>
               <span className="font-medium flex items-center gap-1.5">
@@ -614,7 +632,7 @@ export default function App() {
 
         {/* SWAP CARD */}
         {activeTab === 'swap' && (
-          <div className="bg-[#111318] border border-white/[0.08] rounded-[24px] p-8 shadow-[0_40px_100px_rgba(0,0,0,0.5)]">
+          <div className="bg-[#030610]/80 backdrop-blur-md border border-[#00f0ff]/30 rounded-[24px] p-8 shadow-[0_0_40px_rgba(0,240,255,0.1)] relative hud-border">
             <div className="text-lg font-semibold mb-1.5 hidden">Swap</div>
             <div className="text-[13px] text-[#7a8099] mb-4 hidden">Swap tokens on Narcoarc</div>
             
@@ -696,7 +714,7 @@ export default function App() {
 
         {/* SEND CARD */}
         {activeTab === 'send' && (
-          <div className="bg-[#111318] border border-white/[0.08] rounded-[24px] p-8 shadow-[0_40px_100px_rgba(0,0,0,0.5)]">
+          <div className="bg-[#030610]/80 backdrop-blur-md border border-[#b53cff]/30 rounded-[24px] p-8 shadow-[0_0_40px_rgba(181,60,255,0.1)] relative hud-border">
             <div className="text-lg font-semibold mb-1.5 hidden">Send Tokens</div>
             <div className="text-[13px] text-[#7a8099] mb-6 hidden">Transfer tokens to any address on Narcoarc</div>
             
@@ -738,8 +756,10 @@ export default function App() {
             </div>
             
             <button
-              className={`mt-2 w-full shadow-[0_10px_20px_rgba(79,142,247,0.2)] rounded-[14px] p-4 text-[15px] font-bold text-white transition-opacity 
-                ${isTransferring ? 'bg-gradient-to-br from-[#4f8ef7] to-[#7c5cfc] opacity-70 cursor-wait' : 'bg-gradient-to-br from-[#4f8ef7] to-[#7c5cfc] hover:opacity-90'}
+              className={`mt-2 w-full rounded-[14px] p-4 text-[15px] font-bold mt-6 mb-5 transition-all uppercase tracking-wider
+                ${isTransferring 
+                  ? 'bg-gradient-to-r from-[#b53cff] to-[#00f0ff] opacity-70 text-[#030610] cursor-wait' 
+                  : 'bg-gradient-to-r from-[#b53cff] to-[#00f0ff] text-[#030610] shadow-[0_0_20px_rgba(0,240,255,0.3)] hover:opacity-90'}
               `}
               onClick={executeSend}
               disabled={isTransferring}
@@ -751,15 +771,17 @@ export default function App() {
 
         {/* CIRCLE API CARD */}
         {activeTab === 'circle' && (
-          <div className="bg-[#111318] border border-white/[0.08] rounded-[24px] p-8 shadow-[0_40px_100px_rgba(0,0,0,0.5)]">
+          <div className="bg-[#030610]/80 backdrop-blur-md border border-white/20 rounded-[24px] p-8 shadow-[0_0_40px_rgba(255,255,255,0.05)] relative hud-border">
             <h2 className="text-xl font-bold mb-2">Circle API Status</h2>
             <p className="text-[13px] text-[#7a8099] mb-6">
               Test your connection and key with Circle's Web3 Services API.
             </p>
 
             <button
-              className={`w-full shadow-[0_10px_20px_rgba(34,197,94,0.2)] rounded-[14px] p-4 text-[15px] font-bold text-white transition-opacity 
-                ${isCheckingCircle ? 'bg-gradient-to-br from-[#22c55e] to-[#16a34a] opacity-70 cursor-wait' : 'bg-gradient-to-br from-[#22c55e] to-[#16a34a] hover:opacity-90'}
+              className={`w-full rounded-[14px] p-4 text-[15px] font-bold mt-6 mb-5 transition-all uppercase tracking-wider
+                ${isCheckingCircle 
+                  ? 'bg-gradient-to-r from-white/80 to-white/60 opacity-70 text-[#030610] cursor-wait' 
+                  : 'bg-gradient-to-r from-white to-white/80 text-[#030610] shadow-[0_0_20px_rgba(255,255,255,0.3)] hover:opacity-90'}
               `}
               onClick={checkCircleAPI}
               disabled={isCheckingCircle}
@@ -785,9 +807,9 @@ export default function App() {
       </div>
 
       {/* FOOTER */}
-      <div className="flex justify-center gap-6 pb-8 text-xs text-[#7a8099]">
-        <a href="#" className="hover:text-[#f0f2f7] transition-colors">Arc Network</a>
-        <a href="#" className="hover:text-[#f0f2f7] transition-colors">Developer</a>
+      <div className="flex justify-center gap-6 pb-8 text-xs text-[#00f0ff] uppercase tracking-wider opacity-60">
+        <a href="#" className="hover:text-white hover:opacity-100 transition-all">Arc Network</a>
+        <a href="#" className="hover:text-white hover:opacity-100 transition-all">Developer</a>
       </div>
 
       {/* WALLET / PROFILE MODAL */}
